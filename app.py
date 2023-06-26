@@ -1,11 +1,11 @@
 from flask import Flask, request, jsonify
-from datetime import datetime, timedelta
+import datetime
 
 app = Flask(__name__)
 
 # In-memory storage for the status data
 status_data = {}
-last_dump_time = datetime.now()  # Placeholder for the time of the last data dump
+last_dump_time = None
 
 
 @app.route("/update", methods=["POST"])
@@ -13,52 +13,38 @@ def update():
     global status_data, last_dump_time
     data = request.json
     status_data = data
-    last_dump_time = datetime.now()  # Update the time of the last data dump
+    last_dump_time = datetime.datetime.now()
     print(f"Received data: {data}")
     return jsonify({"message": "Data received successfully"}), 200
 
 
 @app.route("/status", methods=["GET"])
 def get_status():
-    global status_data
-    time_since_last_dump = datetime.now() - last_dump_time
-    days = time_since_last_dump.days
-    hours, remainder = divmod(time_since_last_dump.seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
+    global status_data, last_dump_time
+    response_data = dict(status_data)
 
-    if days > 0:
-        time_since_last_dump_formatted = "{} days, {:02d}:{:02d}".format(days, hours, minutes)
+    if last_dump_time is not None:
+        time_since_dump = datetime.datetime.now() - last_dump_time
+        if time_since_dump >= datetime.timedelta(minutes=1):
+            days = time_since_dump.days
+            hours = time_since_dump.seconds // 3600
+            minutes = (time_since_dump.seconds % 3600) // 60
+            time_since_dump_str = ""
+            if days > 0:
+                time_since_dump_str += f"{days} days "
+            time_since_dump_str += f"{hours:02}:{minutes:02}"
+            response_data["since_last_datadump"] = time_since_dump_str
+
+    return jsonify(response_data), 200
+
+
+@app.route("/status/<datapoint>", methods=["GET"])
+def get_datapoint(datapoint):
+    global status_data, last_dump_time
+    if datapoint in status_data:
+        return jsonify({datapoint: status_data[datapoint]}), 200
     else:
-        time_since_last_dump_formatted = "{:02d}:{:02d}".format(hours, minutes)
-
-    response = {
-        "status_data": status_data,
-        "time_since_last_dump": time_since_last_dump_formatted
-    }
-    return jsonify(response), 200
-
-
-@app.route("/status/<individual_category>", methods=["GET"])
-def get_individual_category(individual_category):
-    global status_data
-    if individual_category in status_data:
-        time_since_last_dump = datetime.now() - last_dump_time
-        days = time_since_last_dump.days
-        hours, remainder = divmod(time_since_last_dump.seconds, 3600)
-        minutes, _ = divmod(remainder, 60)
-
-        if days > 0:
-            time_since_last_dump_formatted = "{} days, {:02d}:{:02d}".format(days, hours, minutes)
-        else:
-            time_since_last_dump_formatted = "{:02d}:{:02d}".format(hours, minutes)
-
-        response = {
-            "category_data": status_data[individual_category],
-            "time_since_last_dump": time_since_last_dump_formatted
-        }
-        return jsonify(response), 200
-    else:
-        return jsonify({"error": "Invalid category"}), 400
+        return jsonify({"error": "Invalid datapoint"}), 400
 
 
 if __name__ == "__main__":
