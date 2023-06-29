@@ -33,7 +33,7 @@ def get_status():
             if days > 0:
                 time_since_dump_str += f"{days} days "
             time_since_dump_str += f"{hours:02}:{minutes:02}"
-            response_data["since_last_datadump"] = time_since_dump_str
+            response_data["since last"] = time_since_dump_str
 
     return jsonify(response_data), 200
 
